@@ -11,6 +11,12 @@ git clone https://github.com/mananabot/univ3-backtest.git
 pip install univ3-backtest
 ```
 
+Run example:
+
+``` bash
+python example_strategy.py
+```
+
 ### Example submission for [Credmark competition](https://app.credmark.com/hackathon?at=details)
 
 Example strategy, backtest and submission to be found in `example_strategy.py`.
