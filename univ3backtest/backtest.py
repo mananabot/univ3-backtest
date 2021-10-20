@@ -118,9 +118,33 @@ class CompetitionBacktest(BacktestBase):
                 result.append(state)
 
     def _run_main_loop_one(self) -> None:
-        # TODO
-        for row in self.data.itertuples():
-            print(row)
+
+        data_records = self.data.reset_index().to_dict('records')
+
+        for input_row in data_records:
+            for strategy, result in zip(self.strategies, self._result):
+
+                # Update strategy
+                strategy.update(input_row)
+
+                # Update strategy state
+                strategy.update_state(
+                    timestamp=input_row['datetime'],
+                    tick=input_row['tick'],
+                    price_1=input_row['token1Price'],
+                    amount_0=input_row['amount0'],
+                    amount_1=input_row['amount1'],
+                    liquidity=input_row['liquidity'],
+                    decimals_0=self.decimals_0,
+                    decimals_1=self.decimals_1,
+                    fee=self.fee,
+                    output_ranges=strategy.output_ranges,
+                    amount_x_initial=self.amount_x_initial
+                )
+
+                # Save last state
+                state = strategy.state.as_dict()
+                result.append(state)
 
     @staticmethod
     def simulate(
