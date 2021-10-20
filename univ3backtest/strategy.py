@@ -68,6 +68,8 @@ class StrategyState:
         self.upper_range_price_last: float = None
         self.lower_range_price_last: float = None
 
+        self.rebalanced = False
+
     def update(
         self,
         timestamp: pd.Timestamp,
@@ -83,9 +85,16 @@ class StrategyState:
         amount_x_initial: Optional[int] = None
     ) -> None:
 
+
         # Set timestamp and price of interest
         self.timestamp = timestamp
         self.price_1 = price_1
+
+        self.rebalanced = False
+
+        # There are no ranges yet
+        if not output_ranges.date:
+            return
 
         # Update price ranges
         self.upper_range_price = output_ranges.positionPriceUpper[-1]
@@ -115,19 +124,29 @@ class StrategyState:
             self.accrued_fees_1 = 0.0
 
             # Reset amounts reinvesting claimed fees
-            self.amount_x = calculate_x(
-                L=self.position_liquidity,
+            amount_x_rebalance = self.amount_x + self.amount_y / price_1
+
+            Lx = L_x(
+                x=amount_x_rebalance,
+                P=price_1,
+                P_up=self.upper_range_price
+            )
+
+            amount_y_rebalance = calculate_y(
+                L=Lx,
                 P=price_1,
                 P_up=self.upper_range_price,
                 P_down=self.lower_range_price
             )
 
-            self.amount_y = calculate_y(
-                L=self.position_liquidity,
-                P=price_1,
-                P_up=self.upper_range_price,
-                P_down=self.lower_range_price
+            rebalance_ratio = amount_x_rebalance / (
+                amount_y_rebalance / price_1 + amount_x_rebalance
             )
+
+            self.amount_x = amount_x_rebalance * rebalance_ratio
+            self.amount_y = amount_x_rebalance * (1 - rebalance_ratio) * price_1
+
+            self.rebalanced = True
 
         self.upper_range_price_last = self.upper_range_price
         self.lower_range_price_last = self.lower_range_price
@@ -180,19 +199,20 @@ class StrategyState:
             return
 
         # Update amounts and position liquidity after a price change
-        self.amount_x = calculate_x(
-            L=self.position_liquidity,
-            P=price_1,
-            P_up=self.upper_range_price,
-            P_down=self.lower_range_price
-        )
+        if not self.rebalanced:
+            self.amount_x = calculate_x(
+                L=self.position_liquidity,
+                P=price_1,
+                P_up=self.upper_range_price,
+                P_down=self.lower_range_price
+            )
 
-        self.amount_y = calculate_y(
-            L=self.position_liquidity,
-            P=price_1,
-            P_up=self.upper_range_price,
-            P_down=self.lower_range_price
-        )
+            self.amount_y = calculate_y(
+                L=self.position_liquidity,
+                P=price_1,
+                P_up=self.upper_range_price,
+                P_down=self.lower_range_price
+            )
 
         # Accrue fees
         self.accrue_fees(tick, price_1, amount_0, amount_1, liquidity, fee)
